@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>Chatbot Archivo Patrimonial UAH</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root{
+      --bg:#F8F9FA;      /* fondo página */
+      --chat:#212529;    /* panel principal */
+      --input:#495057;   /* cajilla usuario */
+      --text:#e9ecef;
+      --muted:#cbd5e1;
+      --border:rgba(255,255,255,.08);
+      --btn:#2563eb; --btn-tex:#ffffff;
+
+      /* burbujas */
+      --bubble-user: rgba(255,255,255,.08);  /* derecha (usuario) */
+      --bubble-sys:  #343a40;                /* izquierda (sistema) */
+      --bubble-border: rgba(255,255,255,.10);
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%; overflow: hidden; }
+    body{
+      background:var(--bg); color:var(--text);
+      font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, Arial;
+      display:flex; align-items:center; justify-content:center;
+    }  
+
+    .shell{
+      width:92vw; height:95vh;
+      background:var(--chat);
+      border-radius:20px;
+      box-shadow:0 8px 40px rgba(0,0,0,.25);
+      border:1px solid var(--border);
+      overflow:hidden;
+      padding:24px;                 /* <-- mantenemos padding uniforme */
+      display:flex; flex-direction:column;
+    }
+    .brand{
+      display:flex; align-items:center; gap:10px;
+      color:#fff; font-weight:600; font-size:14px; margin-bottom:6px;
+    }
+    .brand .uah{font-weight:800;text-transform:lowercase}
+    .brand .bar{opacity:.45}
+
+    /* área central: inicia centrada con la pregunta */
+    /* El scroll vive aquí */
+    .content{
+      flex:1;
+      display:flex; 
+      flex-direction:column; 
+      align-items:center;        /* 👈 vuelve a centrar en horizontal */
+      justify-content:center; 
+      transition:justify-content .2s ease;
+      min-height:0;
+      overflow-y:auto;
+      margin-right:-24px; 
+      padding-right:24px;
+    }
+.content.active{ justify-content:flex-start; /* sigue arriba al empezar el chat */ }
+
+    .hero{
+      text-align:center; color:#fff;
+      font-size: clamp(26px, 4.5vw, 40px);
+      line-height:1.15; font-weight:800;
+      margin:18px auto;
+    }
+    .content.active .hero{ display:none; }
+    
+    .log{
+      width:min(760px, 90%);
+      display:flex; 
+      flex-direction:column; 
+      gap:10px;
+      margin: 0 auto;            /* 👈 centra la columna */
+    }
+
+
+
+    .bubble{
+  max-width:72%;
+  padding:10px 14px;
+  font-size:16px;
+  border-radius:14px;
+  word-wrap:break-word;
+  border:1px solid var(--bubble-border);
+
+  /* 👇 clave para respetar saltos de línea y espacios */
+  white-space: pre-wrap;   /* respeta \n y múltiples espacios, y permite wrap */
+}
+
+    .bubble.user{
+      align-self:flex-end; background:var(--bubble-user); color:var(--text);
+      border-top-right-radius:8px;
+    }
+    .bubble.system{
+      align-self:flex-start; background:var(--bubble-sys); color:#e6e8ea;
+      border-top-left-radius:8px;
+    }
+    .typing{
+      align-self:flex-start; background:transparent; border:0; color:#c0c6cc;
+      font-style:italic; padding:4px 0;
+    }
+
+    .footer{ margin-top:10px; display:flex; flex-direction:column; align-items:center; gap:8px; }
+    .input-wrap{
+      width:min(760px, 90%);
+      background:var(--input); border:1px solid var(--border);
+      border-radius:16px; display:flex; gap:10px; padding:12px 14px;
+    }
+    textarea{
+      flex:1; background:transparent; border:0; outline:0; resize:none;
+      color:#fff; font-size:16px; line-height:1.35; max-height:160px;
+      caret-color:#fff;
+    }
+    .send{
+      background:var(--btn); color:var(--btn-tex);
+      border:0; padding:10px 16px; border-radius:10px; font-weight:700;
+      cursor:pointer; transition:.15s ease; box-shadow:0 4px 18px rgba(37,99,235,.25);
+      align-self:flex-end;
+    }
+    .send:hover{ filter:brightness(1.05) }
+    .hint{ color:var(--muted); font-size:13px; width:min(760px, 90%); text-align:center; }
+
+    @media (max-width:600px){
+      .shell{width:96vw; height:96vh;}
+      .hero{font-size:24px;}
+    }
+
+    /* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #495057 transparent; /* thumb = cajilla; track = transparente */
+}
+
+/* Chrome/Edge/WebKit */
+::-webkit-scrollbar { width: 12px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background-color: #495057;      /* igual a la cajilla de usuario */
+  border-radius: 10px;
+  border: 3px solid transparent;  /* “acolchado” para que no se vea una caja sólida */
+  background-clip: padding-box;
+}
+
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="brand">
+      <span class="uah">uah</span><span class="bar">/</span><span>Universidad Alberto Hurtado</span>
+    </div>
+
+    <div id="content" class="content">
+      <div class="hero">¿Qué tipo de documento estás buscando?</div>
+      <div id="log" class="log"></div>
+    </div>
+
+    <div class="footer">
+      <div class="input-wrap">
+        <textarea id="inputBox" rows="1" placeholder="Escribe, por ejemplo: “fotografías de 1950”, “cartas de rectoría”, “tesis de sociología”…"></textarea>
+        <button id="sendBtn" class="send">Enviar</button>
+      </div>
+      <div class="hint">Enter = enviar • Shift+Enter = salto de línea • Sugerencia: combina <b>tipo</b> + <b>año</b> + <b>tema/lugar</b>.</div>
+    </div>
+  </div>
+
+  <script>
+  const content  = document.getElementById('content');
+  const logEl    = document.getElementById('log');
+  const box      = document.getElementById('inputBox');
+  const sendBtn  = document.getElementById('sendBtn');
+
+  
+  function autosize(el){
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 160) + 'px';
+  }
+
+  function pushBubble(text, role='user'){
+    const b = document.createElement('div');
+    b.className = `bubble ${role}`;
+    b.textContent = text;
+    logEl.appendChild(b);
+    logEl.scrollTop = logEl.scrollHeight;
+    return b;
+  }
+
+  function showTyping(){
+    const t = document.createElement('div');
+    t.className = 'typing';
+    t.textContent = 'escribiendo…';
+    logEl.appendChild(t);
+    logEl.scrollTop = logEl.scrollHeight;
+    return t;
+  }
+
+  function activateChatOnce(){
+    if(!content.classList.contains('active')){
+      content.classList.add('active');
+    }
+  }
+
+  // Backend simulado: devuelve exactamente lo mismo que el usuario escribió
+  async function sendToBackend(userText){
+    const r = await fetch('http://127.0.0.1:8080/api/messages', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ text: userText })
+    });
+    const data = await r.json();
+    return data.echo; // el backend pone la respuesta en "echo"
+  }
+
+  async function send(){
+    const t = box.value.trim();
+    if(!t) return;
+    activateChatOnce();
+
+    pushBubble(t, 'user');
+    box.value = ''; autosize(box); box.focus();
+
+    const typing = showTyping();
+
+    try{
+      const reply = await sendToBackend(t);
+      typing.remove();
+      pushBubble(reply, 'system');
+    }catch(e){
+      typing.remove();
+      pushBubble('Error al contactar el servidor.', 'system');
+    }
+  }
+
+  sendBtn.addEventListener('click', send);
+  box.addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter'){
+      if(e.shiftKey){ return; } // salto de línea
+      e.preventDefault();
+      send();
+    }
+  });
+  function scrollToBottom(){
+    content.scrollTop = content.scrollHeight;
+  }
+
+  function pushBubble(text, role='user'){
+    const b = document.createElement('div');
+    b.className = `bubble ${role}`;
+    b.textContent = text;
+    logEl.appendChild(b);
+    scrollToBottom();               // 👈 aquí
+    return b;
+  }
+
+  function showTyping(){
+    const t = document.createElement('div');
+    t.className = 'typing';
+    t.textContent = 'escribiendo…';
+    logEl.appendChild(t);
+    scrollToBottom();               // 👈 aquí
+    return t;
+  }
+
+
+  box.addEventListener('input', ()=> autosize(box));
+  autosize(box);
+</script>
+
+</body>
+</html>
